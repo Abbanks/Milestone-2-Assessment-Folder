@@ -1,0 +1,28 @@
+# Designing a Secure and Scalable Web Application on AWS 
+
+For a startup operating across two countries, the transition from traditional on-premise hardware to cloud computing is a strategic pivot rather than a simple technical upgrade. The primary benefits are Agility, Elasticity, and Cost Optimization which allow a company to experiment without the heavy lifting of physical server maintenance. Instead of over-spending by predicting server needs three years in advance, the cloud enables pay-as-you-go pricing. This elasticity ensures that during high-traffic events in both countries, the infrastructure scales up automatically, while scaling down during quiet periods to preserve capital. Furthermore, the global reach of AWS ensures low-latency access for international customers without the need to lease physical data center space abroad.
+
+To serve international customers reliably, selecting the correct Region is my first architectural decision. AWS organizes its infrastructure into Regions. These are geographically distinct locations containing multiple Availability Zones (AZs). To minimize latency, we propose selecting a Region central to both target countries; for instance, eu-west-1 (Ireland) effectively serves users across Europe and Africa. Within this Region, we utilize at least two Availability Zones. An AZ consists of one or more discrete data centers with redundant power and networking. This multi-AZ deployment is our foundational pattern for High Availability. If a localized power failure or event impacts one data center, the application continues to run in the second AZ without manual intervention or customer-facing downtime.
+
+The "brains" of this architecture reside in Amazon EC2 (Elastic Compute Cloud). These virtual servers provide resizable compute capacity within a Virtual Private Cloud (VPC), a logically isolated network under the startup's total control. My proposal utilizes an Application Load Balancer (ALB) sitting in front of EC2 instances deployed across separate public subnets. The ALB distributes incoming traffic evenly and performs health checks; if an instance fails, the ALB routes traffic to healthy nodes while an Auto Scaling group automatically replaces the unhealthy instance. This ensures the startup only pays for the compute it needs, starting with cost-effective t3.micro instances for early-stage traffic and scaling to larger instances as the production load increases.
+
+Amazon S3 (Simple Storage Service) provides 99.999999999% durability by replicating data across multiple facilities. By offloading files to S3, EC2 instances are made "stateless," allowing them to be replaced at any time without data loss. I propose using S3 for three distinct purposes:
+- Static Assets: Images, CSS, and JavaScript are stored in S3 and served via Amazon CloudFront. This reduces the load on EC2 and delivers content from edge locations close to the user's geography.
+- Backups: Database dumps and log archives are stored in private buckets. S3 Lifecycle Policies will automatically transition older data to S3 Glacier for low-cost, long-term storage.
+- User Uploads: S3 handles user-generated content durably and at scale. Access is strictly governed by bucket policies to ensure only authorized roles can write to these folders.
+
+Security is governed by the Principle of Least Privilege via IAM. We distinguish strictly between human identities and machine identities:
+- IAM Users: These represent the startup's employees. Every developer receives unique credentials protected by Multi-Factor Authentication (MFA). The Root account is locked away, used only for billing and high-level account management.
+- IAM Roles: These are used for machine-to-machine communication. We assign an IAM Role to our EC2 instances, granting them temporary, rotating permissions to access specific S3 buckets. This eliminates the dangerous practice of hardcoding AWS access keys within application code or environment variables.
+
+Under the Shared Responsibility Model, the startup is responsible for securing data within the cloud. We utilize Security Groups, virtual firewalls to protect our compute resources using a deny-all default rule:
+- Load Balancer Group: Allows inbound traffic on Port 443 (HTTPS) from the public internet.
+- EC2 Instance Group: Allows inbound traffic only from the Load Balancer’s security group on the specific application port. This layered design ensures that even if an instance's public IP is discovered, it remains unreachable from the open internet.
+
+When administrative access is required, we manage it through AWS Key Pairs. The public key is stored on the instance, while the developer retains the private key locally. Best practices dictate that these .pem files are never committed to version control and are protected with strict file permissions. To further harden the environment, I recommend using AWS Systems Manager Session Manager, which allows for audited shell access without leaving Port 22 (SSH) open to the world.
+
+This architecture is designed to grow without requiring a total redesign. As the startup expands, this VPC pattern can be replicated into additional Regions, using Amazon Route 53 for latency-based routing. Should the database outgrow a single instance, we can migrate to Amazon RDS Multi-AZ for managed replication.
+
+Each evolution builds upon the IAM and security foundations established today. By combining a multi-AZ EC2 deployment with S3 offloading and rigorous security policies, the startup creates a hardened, self-healing environment. This architecture provides a professional, scalable foundation capable of supporting the business from its first ten users to its first ten million.
+
+
