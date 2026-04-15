@@ -1,0 +1,22 @@
+# Securing an insecure architecture
+
+The current infrastructure of the organization exhibits significant security vulnerabilities. By utilizing the root account for daily operations, sharing credentials, and leaving networking ports open to the entire internet, the company has effectively bypassed every layer of the AWS well-architected framework. These risks range from accidental resource deletion to malicious ransomware attacks and total account compromise. To reach a professional standard, the organization must immediately adopt the Principle of Least Privilege and implement a multi-layered defense strategy.
+
+The most severe risk in the current setup is the reliance on the AWS Root Account and shared credentials. The root account has unrestricted access to every service and resource; if compromised, an attacker can delete backups, manipulate billing details, and lock out the legitimate owners permanently.Sharing a single set of login credentials across a team eliminates Accountability entirely. If a resource is deleted or a security breach occurs, there is no audit trail to determine who performed the action or how the leak occurred. This practice also violates the core principle of least privilege: all team members, regardless of their seniority, inherit the same unrestricted access level. This means a junior developer possesses the same destructive permissions as a senior engineer or an administrator.
+
+The root account must be secured with a physical hardware Multi-Factor Authentication (MFA) device and used only for tasks that strictly require it, such as changing support plans. Every team member must be issued a unique IAM User. This allows for granular permissions and ensures that if an individual's credentials are lost or stolen, only that specific access needs to be revoked rather than the entire teams.
+
+Beyond human users, the company must remediate how applications interact with resources. Currently, when an application on an EC2 instance needs to save a backup to S3, developers often resort to hardcoding Secret Access Keys into the source code. This is a critical security flaw. Instead of hardcoding keys, the company should implement IAM Roles. A role is a temporary set of permissions assigned to an AWS service. By attaching an IAM Role to an EC2 instance, the instance can assume an identity and interact with S3 securely. AWS automatically handles the rotation of these temporary credentials, ensuring there are no long-term secrets for an attacker to extract from the codebase.
+
+Allowing SSH access from 0.0.0.0/0 is the digital equivalent of leaving a bank vault open to a crowded street. Automated bots constantly scan the internet for open Port 22; when combined with a shared login, a brute-force attack is almost certain to succeed. Security Groups must act as the primary stateful firewall, following a "Default Deny" policy. To secure administrative access, the company should:
+
+- Limit CIDR Blocks: Restrict Port 22 access exclusively to the static IP address of the company office.
+- Adopt Session Manager: Ideally, the company should transition to AWS Systems Manager Session Manager. This provides terminal access via the AWS Console or CLI without requiring any inbound ports to be open, effectively making the instance invisible to external network scanners.
+
+Storing backups in S3 without deliberate access controls is a massive liability. Without a strict Bucket Policy, sensitive company data could be exposed to the public internet or accessed by unauthorized staff. S3 security must be implemented at three distinct levels:
+
+- Block Public Access: Enable this feature at the account level to ensure no bucket can be made public by mistake.
+- Bucket Policies: Use JSON-based policies to explicitly define which IAM Roles are authorized to upload or read data.
+- Encryption and Versioning: Enable Server-Side Encryption (SSE) so data is unreadable if physically intercepted, and enable Versioning. Versioning ensures that if a malicious actor or a human error results in data deletion, an older version can be restored instantly.
+
+Securing an AWS environment is a continuous process of narrowing access. By moving from a shared root account to individual IAM identities, replacing Port 22 exposure with Session Manager, and hardening S3 with strict bucket policies, the company shifts from extreme vulnerability to a hardened posture. This corrected architecture ensures that even if one component is compromised, the rest of the system remains isolated, audited, and secure.
